@@ -31,7 +31,7 @@ func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64, webSiteRe
 	fmt.Println("Collecte terminée merci rob")
 
 	cr := cron.New()
-	cr.AddFunc("@every 7s", func() {
+	cr.AddFunc("@every 10m", func() {
 		log.Println("Exécution de la tâche cron ", time.Now())
 		websites, err := webSiteRepo.GetAll()
 		if err != nil {
