@@ -70,7 +70,7 @@ func main() {
 	r.HandleFunc("/websites/{websiteID}/scans", scanHandler.GetScansForWebsite).Methods("GET")
 
 	// Initialiser le planificateur de tâches cron
-	cron.InitCron(telegramBot, telegramChatID)
+	cron.InitCron(telegramBot, telegramChatID, websiteRepo)
 
 	log.Println("Serveur en cours d'exécution sur le port 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
