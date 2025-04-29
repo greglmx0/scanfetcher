@@ -3,12 +3,12 @@ package cron
 import (
 	"fmt"
 	"log"
-	"slices"
-	"strings"
+	"os"
 	"time"
 
 	"scanfetcher/internal/domain"
 	"scanfetcher/internal/repository"
+	"scanfetcher/internal/scraper"
 	"scanfetcher/internal/telegram"
 
 	"github.com/go-rod/rod"
@@ -21,17 +21,12 @@ type APIResponse struct {
 }
 
 // InitCron initialise et démarre le planificateur de tâches cron
-func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64, webSiteRepo *repository.WebsiteRepository) {
-	// os.Setenv("ROD_BROWSER_PATH", "/usr/bin/chromium")
-	// fmt.Println("ROD_BROWSER_PATH:", os.Getenv("ROD_BROWSER_PATH"))
-	rob := rod.New().MustConnect()
-
-	fmt.Println("Initialisation du collecteur rob")
-	scrapScans(rob, "https://mangas-origines.fr/oeuvre/the-beginning-after-the-end/")
-	fmt.Println("Collecte terminée merci rob")
+func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64, webSiteRepo *repository.WebsiteRepository, scanRepo *repository.ScanRepository) {
 
 	cr := cron.New()
-	cr.AddFunc("@every 10m", func() {
+	cron_job_schedule := os.Getenv("CRON_JOB_SCHEDULE")
+	log.Printf("Planificateur de tâches cron démarré avec la planification: %s", cron_job_schedule)
+	cr.AddFunc(cron_job_schedule, func() {
 		log.Println("Exécution de la tâche cron ", time.Now())
 		websites, err := webSiteRepo.GetAll()
 		if err != nil {
@@ -40,107 +35,71 @@ func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64, webSiteRe
 		}
 
 		log.Printf("Sites web récupérés: %v", websites)
+		newScans := fetchAndProcessMissions(websites, scanRepo)
 
-		// newMissions := fetchAndProcessMissions(websites, missionRepo)
-
-		// // Envoi des nouvelles missions par Telegram
-		// sendTelegramMessages(telegramBot, telegramChatID, newMissions)
+		sendTelegramMessages(telegramBot, telegramChatID, newScans)
 	})
 	cr.Start()
 }
 
-func fetchAndProcessMissions(websites []domain.Website) []domain.Scan {
-	var rowScan []domain.Scan
+func fetchAndProcessMissions(websites []domain.Website, scanRepo *repository.ScanRepository) []domain.Scan {
+	var allScans []domain.Scan
 
-	for _, website := range websites {
-		log.Printf("Traitement du site web: %v", website.Name)
+	for _, site := range websites {
 
-		switch website.Name {
-		case "mangas-origines.fr":
+		scan, _ := scanRepo.GetByWebsiteID(site.ID)
 
+		fmt.Printf("Site: %s, Scans: %v\n", site.Name, scan)
+
+		for _, s := range scan {
+
+			browser := rod.New().MustConnect()
+			scraper, err := scraper.GetScraper(site.Name)
+			if err != nil {
+				log.Printf("Scraper non disponible pour %s: %v", site.Name, err)
+				continue
+			}
+
+			log.Printf("Lancement du scraper pour %s", site.Name)
+			scans, err := scraper.Scrape(browser, s.Url)
+			browser.MustClose()
+			if err != nil {
+				log.Printf("Erreur lors du scraping de %s: %v", site.Name, err)
+				continue
+			}
+
+			// check if the last scan read is the same as the last scan
+			if len(scans) == 0 || scans[0].LastScanRead == s.LastScanRead {
+				log.Printf("Aucun nouveau scan trouvé pour %s", site.Name)
+				continue
+			}
+
+			// On met à jour le dernier scan lu
+			err = scanRepo.UpdateLastScanRead(int(s.ID), scans[0].LastScanRead)
+			if err != nil {
+				log.Printf("Erreur lors de la mise à jour du dernier scan lu pour %s: %v", site.Name, err)
+				continue
+			}
+			log.Printf("Dernier scan lu mis à jour pour %s", site.Name)
+
+			// On envoie le message Telegram
+			message := fmt.Sprintf("Nouveau scan trouvé: %s\nURL: %s\nDernière lecture: %s\nID du site web: %d",
+				scans[0].Name, scans[0].Url, scans[0].LastScanRead, s.WebsiteID)
+			log.Printf("Envoi du message Telegram: %s", message)
+
+			allScans = append(allScans, scans...)
 		}
-		return rowScan
 	}
-	return rowScan
+
+	return allScans
 }
 
-func sendTelegramMessages(telegramBot *telegram.TelegramBot, telegramChatID int64, missions []domain.Scan) {
-	for _, mission := range missions {
+func sendTelegramMessages(telegramBot *telegram.TelegramBot, telegramChatID int64, scans []domain.Scan) {
+	for _, s := range scans {
 		message := fmt.Sprintf("Nouveau scan trouvé: %s\nURL: %s\nDernière lecture: %s\nID du site web: %d",
-			mission.Name, mission.Url, mission.LastScanRead, mission.WebsiteID)
+			scans[0].Name, scans[0].Url, scans[0].LastScanRead, s.WebsiteID)
 		log.Printf("Envoi du message Telegram: %s", message)
 
 		telegramBot.SendMessage(telegramChatID, message)
 	}
-}
-
-func scrapScans(rod *rod.Browser, url string) string {
-	page := rod.MustPage(url)
-	page.MustWaitLoad()
-
-	// On chope la div principale
-	div := page.MustElement("#manga-chapters-holder")
-
-	// Tous les chapitres
-	chapters := div.MustElements("li.wp-manga-chapter")
-	if len(chapters) == 0 {
-		return "Aucun chapitre trouvé"
-	}
-
-	// Ne garder que le premier chapitre si plus d'un chapitre est trouvé
-	if len(chapters) > 1 {
-		chapters = chapters[:1]
-	}
-
-	// Reverse les chapitres
-	slices.Reverse(chapters)
-
-	var result strings.Builder
-	for _, chapter := range chapters {
-		a := chapter.MustElement("a")
-		title := strings.TrimSpace(a.MustText())
-		if title == "" {
-			continue
-		}
-
-		link := a.MustProperty("href").String()
-		if link == "" {
-			continue
-		}
-
-		date := getDate(chapter)
-		views := getViews(chapter)
-
-		result.WriteString(fmt.Sprintf("\n------------\n📘 %s\n🔗 %s\n📅 %s\n👁️  %s\n------------\n", title, link, date, views))
-	}
-
-	log.Printf("Résultat de la collecte: %s", result.String())
-	return result.String()
-}
-
-func getDate(chapter *rod.Element) string {
-	dateSpan := chapter.MustElement("span.chapter-release-date")
-	if dateSpan == nil {
-		return ""
-	}
-
-	// Essaye de trouver l'élément <i> dans le span
-	if iElement, err := dateSpan.Element("i"); err == nil && iElement != nil {
-		return strings.TrimSpace(iElement.MustText())
-	}
-
-	// Sinon cherche un <a> dans le span
-	if aTag, err := dateSpan.Element("a"); err == nil && aTag != nil {
-		return aTag.MustProperty("title").String()
-	}
-
-	return ""
-}
-
-func getViews(chapter *rod.Element) string {
-	viewSpan := chapter.MustElement("span.view")
-	if viewSpan != nil {
-		return strings.TrimSpace(viewSpan.MustText())
-	}
-	return ""
 }
