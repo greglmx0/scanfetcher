@@ -10,7 +10,7 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o scanfetcher ./main.go
+RUN go build -o scanfetcher ./cmd/main.go
 
 # Étape 2 : Image minimale pour exécution
 FROM alpine:latest
