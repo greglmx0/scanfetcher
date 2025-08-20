@@ -17,9 +17,19 @@ FROM alpine:latest
 
 WORKDIR /app
 
-RUN apk add --no-cache sqlite
+RUN apk add --no-cache sqlite curl
 
-COPY --from=builder /app/scanfetcher .
+# Create a non-root user
+RUN addgroup -g 1001 -S appuser && \
+    adduser -S appuser -u 1001 -G appuser
+
+# Create data directory and set permissions
+RUN mkdir -p /app/data && \
+    chown -R appuser:appuser /app
+
+COPY --from=builder --chown=appuser:appuser /app/scanfetcher .
+
+USER appuser
 
 EXPOSE 8080
 

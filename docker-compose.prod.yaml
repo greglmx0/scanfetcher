@@ -14,7 +14,8 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       SEND_MESSAGE_TELEGRAM: ${SEND_MESSAGE_TELEGRAM}
     volumes:
-      - ./data:/app/data # Monte tout le dossier, pas juste le fichier le fichier est monté en root pensez à changer les droits
+      - ./data:/app/data:rw
+    user: "1001:1001"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
