@@ -34,7 +34,9 @@ func main() {
 	}
 
 	// Initialiser la base de données
-	db, err := db.InitDB("/app/data/scanfetcher.db")
+	dbPath := "/app/data"
+	dbName := "scanfetcher.db"
+	db, err := db.InitDB(dbPath, dbName)
 	if err != nil {
 		log.Fatalf("Erreur lors de l'initialisation de la base de données: %v", err)
 	}
@@ -68,7 +70,7 @@ func main() {
 	r.HandleFunc("/websites/{websiteID}/scans", scanHandler.GetScansForWebsite).Methods("GET")
 
 	// Initialiser le planificateur de tâches cron
-	cron.InitCron(telegramBot, telegramChatID)
+	cron.InitCron(telegramBot, telegramChatID, websiteRepo, scanRepo)
 
 	log.Println("Serveur en cours d'exécution sur le port 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))

@@ -46,3 +46,7 @@ func (r *ScanRepository) GetByWebsiteID(websiteID int) ([]domain.Scan, error) {
 
 	return scans, nil
 }
+
+func (r *ScanRepository) UpdateLastScanRead(scanID int, lastScanRead string) error {
+	return r.db.Model(&db.Scan{}).Where("id = ?", scanID).Update("last_scan_read", lastScanRead).Error
+}

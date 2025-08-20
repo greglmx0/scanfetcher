@@ -3,11 +3,15 @@ package cron
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"scanfetcher/internal/domain"
+	"scanfetcher/internal/repository"
+	"scanfetcher/internal/scraper"
 	"scanfetcher/internal/telegram"
 
+	"github.com/go-rod/rod"
 	"github.com/robfig/cron"
 )
 
@@ -17,82 +21,85 @@ type APIResponse struct {
 }
 
 // InitCron initialise et démarre le planificateur de tâches cron
-func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64) {
-	c := cron.New()
-	c.AddFunc("@every 7s", func() {
+func InitCron(telegramBot *telegram.TelegramBot, telegramChatID int64, webSiteRepo *repository.WebsiteRepository, scanRepo *repository.ScanRepository) {
+
+	cr := cron.New()
+	cron_job_schedule := os.Getenv("CRON_JOB_SCHEDULE")
+	log.Printf("Planificateur de tâches cron démarré avec la planification: %s", cron_job_schedule)
+	cr.AddFunc(cron_job_schedule, func() {
 		log.Println("Exécution de la tâche cron ", time.Now())
-		// websites, err := webSiteRepo.GetAllWebsites()
-		// if err != nil {
-		// 	log.Printf("Erreur lors de la récupération des sites web: %v", err)
-		// 	return
-		// }
+		websites, err := webSiteRepo.GetAll()
+		if err != nil {
+			log.Printf("Erreur lors de la récupération des sites web: %v", err)
+			return
+		}
 
-		// newMissions := fetchAndProcessMissions(websites, missionRepo)
+		log.Printf("Sites web récupérés: %v", websites)
+		newScans := fetchAndProcessMissions(websites, scanRepo)
 
-		// // Envoi des nouvelles missions par Telegram
-		// sendTelegramMessages(telegramBot, telegramChatID, newMissions)
+		sendTelegramMessages(telegramBot, telegramChatID, newScans)
 	})
-	c.Start()
+	cr.Start()
 }
 
-// func fetchAndProcessMissions(websites []domain.Website, missionRepo *repository.MissionRepository) []domain.Mission {
-// 	var newMissions []domain.Mission
+func fetchAndProcessMissions(websites []domain.Website, scanRepo *repository.ScanRepository) []domain.Scan {
+	var allScans []domain.Scan
 
-// 	for _, website := range websites {
-// 		log.Printf("Traitement du site web: %v", website.Name)
+	for _, site := range websites {
 
-// 		switch website.Source {
-// 		case "VIE":
-// 			rawMissions, err := PostRequest(website.URL, website.Body)
-// 			if err != nil {
-// 				log.Printf("Erreur lors de la requête POST pour %s: %v", website.Name, err)
-// 				continue
-// 			}
+		scan, _ := scanRepo.GetByWebsiteID(site.ID)
 
-// 			missions, err := decodeVIEResponse(rawMissions)
-// 			if err != nil {
-// 				log.Printf("Erreur lors du décodage de la réponse pour %s: %v", website.Name, err)
-// 				continue
-// 			}
+		fmt.Printf("Site: %s, Scans: %v\n", site.Name, scan)
 
-// 			newMissions = append(newMissions, processVIEMissions(missions, website.Name, missionRepo)...)
-// 		}
-// 	}
-// 	return newMissions
-// }
+		for _, s := range scan {
 
-func sendTelegramMessages(telegramBot *telegram.TelegramBot, telegramChatID int64, missions []domain.Scan) {
-	for _, mission := range missions {
+			browser := rod.New().MustConnect()
+			scraper, err := scraper.GetScraper(site.Name)
+			if err != nil {
+				log.Printf("Scraper non disponible pour %s: %v", site.Name, err)
+				continue
+			}
+
+			log.Printf("Lancement du scraper pour %s", site.Name)
+			scans, err := scraper.Scrape(browser, s.Url)
+			browser.MustClose()
+			if err != nil {
+				log.Printf("Erreur lors du scraping de %s: %v", site.Name, err)
+				continue
+			}
+
+			// check if the last scan read is the same as the last scan
+			if len(scans) == 0 || scans[0].LastScanRead == s.LastScanRead {
+				log.Printf("Aucun nouveau scan trouvé pour %s", site.Name)
+				continue
+			}
+
+			// On met à jour le dernier scan lu
+			err = scanRepo.UpdateLastScanRead(int(s.ID), scans[0].LastScanRead)
+			if err != nil {
+				log.Printf("Erreur lors de la mise à jour du dernier scan lu pour %s: %v", site.Name, err)
+				continue
+			}
+			log.Printf("Dernier scan lu mis à jour pour %s", site.Name)
+
+			// On envoie le message Telegram
+			message := fmt.Sprintf("Nouveau scan trouvé: %s\nURL: %s\nDernière lecture: %s\nID du site web: %d",
+				scans[0].Name, scans[0].Url, scans[0].LastScanRead, s.WebsiteID)
+			log.Printf("Envoi du message Telegram: %s", message)
+
+			allScans = append(allScans, scans...)
+		}
+	}
+
+	return allScans
+}
+
+func sendTelegramMessages(telegramBot *telegram.TelegramBot, telegramChatID int64, scans []domain.Scan) {
+	for _, s := range scans {
 		message := fmt.Sprintf("Nouveau scan trouvé: %s\nURL: %s\nDernière lecture: %s\nID du site web: %d",
-			mission.Name, mission.Url, mission.LastScanRead, mission.WebsiteID)
+			scans[0].Name, scans[0].Url, scans[0].LastScanRead, s.WebsiteID)
 		log.Printf("Envoi du message Telegram: %s", message)
 
 		telegramBot.SendMessage(telegramChatID, message)
 	}
 }
-
-// func PostRequest(url string, body string) (interface{}, error) {
-// 	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(body)))
-// 	if err != nil {
-// 		return nil, fmt.Errorf("erreur lors de la création de la requête POST: %v", err)
-// 	}
-// 	req.Header.Set("Content-Type", "application/json")
-
-// 	client := &http.Client{Timeout: 10 * time.Second}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("erreur lors de l'envoi de la requête POST: %v", err)
-// 	}
-// 	defer resp.Body.Close()
-
-// 	if resp.StatusCode != http.StatusOK {
-// 		return nil, fmt.Errorf("statut HTTP inattendu: %s", resp.Status)
-// 	}
-
-// 	var apiResponse APIResponse
-// 	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
-// 		return nil, fmt.Errorf("erreur lors du décodage JSON: %v", err)
-// 	}
-
-// 	return apiResponse.Result, nil
-// }

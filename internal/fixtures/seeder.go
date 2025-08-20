@@ -44,7 +44,7 @@ func seedScans(dbConn *gorm.DB) {
 		// Create the scan
 		scan := db.Scan{
 			Name:        "the-beginning-after-the-end",
-			Url:         "https://mangas-origines.fr/oeuvre/640-the-beginning-after-the-end/",
+			Url:         "https://mangas-origines.fr/oeuvre/the-beginning-after-the-end/",
 			WebsiteRef:   website.ID,
 			LastScanRead: "211",
 		}

@@ -1,0 +1,26 @@
+# Étape 1 : Build de l'application Go
+FROM golang:1.23-alpine as builder
+
+RUN apk add --no-cache build-base sqlite
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN go build -o scanfetcher ./main.go
+
+# Étape 2 : Image minimale pour exécution
+FROM alpine:latest
+
+WORKDIR /app
+
+RUN apk add --no-cache sqlite
+
+COPY --from=builder /app/scanfetcher .
+
+EXPOSE 8080
+
+CMD ["./scanfetcher"]

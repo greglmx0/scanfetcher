@@ -24,16 +24,16 @@ type Website struct {
 
 type Scan struct {
 	gorm.Model
-	ID           uint      `gorm:"primaryKey"`
-	Name         string    `gorm:"not null"`
-	Url          string    `gorm:"not null"`
-	LastScanRead string    `gorm:"not null"`
+	ID           uint   `gorm:"primaryKey"`
+	Name         string `gorm:"not null"`
+	Url          string `gorm:"not null"`
+	LastScanRead string `gorm:"not null"`
 	WebsiteRef   uint
-	Website      Website  `gorm:"foreignKey:WebsiteRef"`
+	Website      Website `gorm:"foreignKey:WebsiteRef"`
 }
 
 // InitDB initialise et retourne une connexion à SQLite avec GORM
-func InitDB(dbPath string) (*gorm.DB, error) {
+func InitDB(dbPath string, dbName string) (*gorm.DB, error) {
 
 	dir := filepath.Dir(dbPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -41,13 +41,22 @@ func InitDB(dbPath string) (*gorm.DB, error) {
 			return nil, err
 		}
 	}
-	
+
 	// change owner of the file to the current user
 	if err := os.Chown(dbPath, os.Getuid(), os.Getgid()); err != nil {
 		return nil, err
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	// create the file if it doesn't exist
+	if _, err := os.Stat(dbName); os.IsNotExist(err) {
+		file, err := os.Create(dbName)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+	}
+
+	db, err := gorm.Open(sqlite.Open(dbPath+"/"+dbName), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}

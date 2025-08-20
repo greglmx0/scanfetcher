@@ -1,0 +1,50 @@
+name: Deploy scanfetcher
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: /var/www/html/scanfetcher
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: copy app files on VPS
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "."
+          target: "/var/www/html/scanfetcher"
+          strip_components: 1
+          overwrite: true
+          # rm: true
+
+      - name: Deploy scanfetcher
+        env:
+          PHP_LITE_ADMIN_PASSWORD: ${{ secrets.PHP_LITE_ADMIN_PASSWORD }}
+          SEND_MESSAGE_TELEGRAM: ${{ secrets.SEND_MESSAGE_TELEGRAM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          envs: PHP_LITE_ADMIN_PASSWORD,SEND_MESSAGE_TELEGRAM,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID
+          script: |
+            echo "Starting docker compose for deploy scanfetcher..."
+            cd /var/www/html/scanfetcher
+            mkdir -p data && touch data/scanfetcher.db && chmod 666 data/scanfetcher.db
+            docker compose -f docker-compose.prod.yaml up --build -d
+            echo "Deploy scanfetcher done"
