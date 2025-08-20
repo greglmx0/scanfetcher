@@ -13,18 +13,18 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Prepare VPS directory
-        uses: appleboy/ssh-action@master
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
-            echo "Preparing deployment directory..."
-            sudo mkdir -p /var/www/html/scanfetcher
-            sudo chown -R $USER:$USER /var/www/html/scanfetcher
-            sudo chmod -R 755 /var/www/html/scanfetcher
+          go-version: "1.23"
+
+      - name: Build binary
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main.go
+
+      - name: Prepare artifact for SCP
+        run: |
+          tar -czf deploy.tar.gz Dockerfile.prod docker-compose.prod.yaml scanfetcher data || true
 
       - name: copy app files on VPS
         uses: appleboy/scp-action@master
@@ -33,18 +33,13 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          source: "."
+          source: "deploy.tar.gz"
           target: "/var/www/html/scanfetcher"
-          strip_components: 1
+          strip_components: 0
           overwrite: true
           rm: true
 
-      - name: Deploy scanfetcher
-        env:
-          PHP_LITE_ADMIN_PASSWORD: ${{ secrets.PHP_LITE_ADMIN_PASSWORD }}
-          SEND_MESSAGE_TELEGRAM: ${{ secrets.SEND_MESSAGE_TELEGRAM }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Extract on VPS and deploy
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -53,22 +48,21 @@ jobs:
           port: ${{ secrets.VPS_PORT }}
           envs: PHP_LITE_ADMIN_PASSWORD,SEND_MESSAGE_TELEGRAM,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID
           script: |
-            echo "Starting docker compose for deploy scanfetcher..."
-            cd /var/www/html/scanfetcher
-
-            # Ensure proper ownership and permissions
+            echo "Preparing deployment directory..."
+            sudo mkdir -p /var/www/html/scanfetcher
             sudo chown -R $USER:$USER /var/www/html/scanfetcher
             sudo chmod -R 755 /var/www/html/scanfetcher
+            cd /var/www/html/scanfetcher
+            if [ -f deploy.tar.gz ]; then
+              tar -xzf deploy.tar.gz || { echo "Failed to extract deploy.tar.gz"; exit 1; }
+              rm deploy.tar.gz
+            fi
 
-            # Create data directory with proper permissions for the container user (1001:1001)
+            # Ensure data dir exists and permissions are correct
             mkdir -p data
-
-            # Create database file if it doesn't exist
             if [ ! -f data/scanfetcher.db ]; then
               touch data/scanfetcher.db
             fi
-
-            # Set proper ownership for the data directory to match container user
             sudo chown -R 1001:1001 data/
             sudo chmod -R 755 data/
             sudo chmod 644 data/scanfetcher.db
@@ -76,16 +70,10 @@ jobs:
             # Stop existing containers gracefully
             docker compose -f docker-compose.prod.yaml down || true
 
-            # Clean up any dangling images and containers
-            docker system prune -f || true
-
             # Start new deployment
             docker compose -f docker-compose.prod.yaml up --build -d
 
-            # Wait a moment for container to start
+            # Wait and check
             sleep 5
-
-            # Check container status
             docker compose -f docker-compose.prod.yaml ps
-
             echo "Deploy scanfetcher done"
