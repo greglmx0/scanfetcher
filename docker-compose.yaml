@@ -20,6 +20,7 @@ services:
       - TELEGRAM_BOT_TOKEN
       - TELEGRAM_CHAT_ID
       - SEND_MESSAGE_TELEGRAM
+      - CRON_JOB_SCHEDULE
 
   phpliteadmin:
     hostname: phpliteadmin

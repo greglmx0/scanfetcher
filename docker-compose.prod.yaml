@@ -11,6 +11,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID}
       SEND_MESSAGE_TELEGRAM: ${SEND_MESSAGE_TELEGRAM}
+      CRON_JOB_SCHEDULE: ${CRON_JOB_SCHEDULE}
     volumes:
       - ./data:/app/data:rw
     user: "1001:1001"

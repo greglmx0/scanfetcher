@@ -51,13 +51,14 @@ jobs:
           SEND_MESSAGE_TELEGRAM: ${{ secrets.SEND_MESSAGE_TELEGRAM }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          CRON_JOB_SCHEDULE: ${{ secrets.CRON_JOB_SCHEDULE }}
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.VPS_PORT }}
-          envs: PHP_LITE_ADMIN_PASSWORD,SEND_MESSAGE_TELEGRAM,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID
+          envs: PHP_LITE_ADMIN_PASSWORD,SEND_MESSAGE_TELEGRAM,TELEGRAM_BOT_TOKEN,TELEGRAM_CHAT_ID,CRON_JOB_SCHEDULE
           script: |
             echo "Preparing deployment directory..."
             sudo mkdir -p /var/www/html/scanfetcher
