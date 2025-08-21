@@ -7,6 +7,9 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	// Use the modernc.org/sqlite pure-Go driver (no cgo).
+	_ "modernc.org/sqlite"
 )
 
 type User struct {
@@ -42,10 +45,7 @@ func InitDB(dbPath string, dbName string) (*gorm.DB, error) {
 		}
 	}
 
-	// change owner of the file to the current user
-	if err := os.Chown(dbPath, os.Getuid(), os.Getgid()); err != nil {
-		return nil, err
-	}
+	_ = os.Chown(dbPath, os.Getuid(), os.Getgid())
 
 	// create the file if it doesn't exist
 	if _, err := os.Stat(dbName); os.IsNotExist(err) {
@@ -56,7 +56,10 @@ func InitDB(dbPath string, dbName string) (*gorm.DB, error) {
 		defer file.Close()
 	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath+"/"+dbName), &gorm.Config{})
+	// Use the provided dbName as the sqlite file. modernc.org/sqlite registers
+	// the driver under the name "sqlite" so GORM's sqlite driver will use it.
+	dsn := "file:" + dbName + "?_busy_timeout=5000"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
