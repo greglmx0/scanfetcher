@@ -19,8 +19,10 @@ jobs:
           go-version: "1.24"
 
       - name: Build binary
+        # Ne fonctionne pas pour l'image alpine du Dockerfile
+        # GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main.go
         run: |
-          GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main
 
       - name: Prepare artifact for SCP
         run: |
@@ -44,6 +46,11 @@ jobs:
           # rm: true
 
       - name: Extract on VPS and deploy
+        env:
+          PHP_LITE_ADMIN_PASSWORD: ${{ secrets.PHP_LITE_ADMIN_PASSWORD }}
+          SEND_MESSAGE_TELEGRAM: ${{ secrets.SEND_MESSAGE_TELEGRAM }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
