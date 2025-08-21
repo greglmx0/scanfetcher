@@ -14,7 +14,7 @@ RUN mkdir -p /app/data && \
     chown -R appuser:appuser /app
 
 # Expect a prebuilt binary to be copied in by the deployment process
-COPY scanfetcher /app/scanfetcher
+COPY . /app/scanfetcher
 RUN chown appuser:appuser /app/scanfetcher && chmod +x /app/scanfetcher
 
 USER appuser

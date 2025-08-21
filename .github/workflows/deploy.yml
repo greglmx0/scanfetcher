@@ -24,7 +24,11 @@ jobs:
 
       - name: Prepare artifact for SCP
         run: |
-          tar -czf deploy.tar.gz Dockerfile.prod docker-compose.prod.yaml scanfetcher data || true
+          tar -czf deploy.tar.gz Dockerfile.prod docker-compose.prod.yaml scanfetcher || true
+
+      - name: Change rights for deploy.tar.gz
+        run: |
+          chmod 644 deploy.tar.gz
 
       - name: copy app files on VPS
         uses: appleboy/scp-action@master
