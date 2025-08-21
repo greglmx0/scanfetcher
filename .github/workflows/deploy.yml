@@ -22,7 +22,7 @@ jobs:
         # Ne fonctionne pas pour l'image alpine du Dockerfile
         # GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main.go
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o scanfetcher ./cmd/main.go
 
       - name: Prepare artifact for SCP
         run: |
