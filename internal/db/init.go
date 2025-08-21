@@ -47,13 +47,18 @@ func InitDB(dbPath string, dbName string) (*gorm.DB, error) {
 
 	_ = os.Chown(dbPath, os.Getuid(), os.Getgid())
 
-	// create the file if it doesn't exist
+	// create the file if it doesn't exist in dbPath
+	dbName = filepath.Join(dbPath, dbName)
+	log.Printf("Initialisation de la base de données à l'emplacement: %s\n", dbName)
 	if _, err := os.Stat(dbName); os.IsNotExist(err) {
 		file, err := os.Create(dbName)
 		if err != nil {
 			return nil, err
 		}
-		defer file.Close()
+		file.Close()
+		log.Printf("Fichier de base de données créé: %s\n", dbName)
+	} else {
+		log.Printf("Fichier de base de données déjà existant: %s\n", dbName)
 	}
 
 	// Use the provided dbName as the sqlite file. modernc.org/sqlite registers
