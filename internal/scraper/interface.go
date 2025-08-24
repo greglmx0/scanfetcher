@@ -9,3 +9,7 @@ import (
 type Scraper interface {
 	Scrape(browser *rod.Browser, url string) ([]domain.Scan, error)
 }
+
+type Factory interface {
+	Get(name string) (Scraper, error)
+}

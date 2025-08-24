@@ -27,7 +27,7 @@ func (r *ScanRepository) Create(scan domain.Scan) error {
 	return r.db.Create(&dbScan).Error
 }
 
-func (r *ScanRepository) GetByWebsiteID(websiteID int) ([]domain.Scan, error) {
+func (r *ScanRepository) GetByWebsiteID(websiteID uint) ([]domain.Scan, error) {
 	var dbScans []db.Scan
 	if err := r.db.Where("website_ref = ?", websiteID).Find(&dbScans).Error; err != nil {
 		return nil, err
@@ -36,7 +36,7 @@ func (r *ScanRepository) GetByWebsiteID(websiteID int) ([]domain.Scan, error) {
 	var scans []domain.Scan
 	for _, s := range dbScans {
 		scans = append(scans, domain.Scan{
-			ID:           int(s.ID),
+			ID:           s.ID,
 			Name:         s.Name,
 			Url:          s.Url,
 			LastScanRead: s.LastScanRead,
@@ -47,6 +47,6 @@ func (r *ScanRepository) GetByWebsiteID(websiteID int) ([]domain.Scan, error) {
 	return scans, nil
 }
 
-func (r *ScanRepository) UpdateLastScanRead(scanID int, lastScanRead string) error {
+func (r *ScanRepository) UpdateLastScanRead(scanID uint, lastScanRead string) error {
 	return r.db.Model(&db.Scan{}).Where("id = ?", scanID).Update("last_scan_read", lastScanRead).Error
 }

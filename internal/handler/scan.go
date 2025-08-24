@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"scanfetcher/internal/domain"
+	"scanfetcher/internal/service"
 	"scanfetcher/internal/usecase"
 
 	"github.com/gorilla/mux"
@@ -14,10 +17,11 @@ import (
 
 type ScanHandler struct {
 	usecase *usecase.ScanUseCase
+	svc     *service.ScanService
 }
 
-func NewScanHandler(uc *usecase.ScanUseCase) *ScanHandler {
-	return &ScanHandler{usecase: uc}
+func NewScanHandler(uc *usecase.ScanUseCase, svc *service.ScanService) *ScanHandler {
+	return &ScanHandler{usecase: uc, svc: svc}
 }
 
 func (h *ScanHandler) CreateScan(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +29,7 @@ func (h *ScanHandler) CreateScan(w http.ResponseWriter, r *http.Request) {
 		Name         string `json:"name"`
 		Url          string `json:"url"`
 		LastScanRead string `json:"last_scan_read"`
-		WebsiteID    uint    `json:"website_id"`
+		WebsiteID    uint   `json:"website_id"`
 	}
 
 	var body input
@@ -58,7 +62,7 @@ func (h *ScanHandler) GetScansForWebsite(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	scans, err := h.usecase.GetScansForWebsite(websiteID)
+	scans, err := h.usecase.GetScansForWebsite(uint(websiteID))
 	if err != nil {
 		http.Error(w, "Failed to fetch scans", http.StatusInternalServerError)
 		return
@@ -66,4 +70,40 @@ func (h *ScanHandler) GetScansForWebsite(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(scans)
+}
+
+func (h *ScanHandler) RunAll(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+
+	scans, err := h.svc.RunAll(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(struct {
+		Count  int         `json:"count"`
+		Result interface{} `json:"result"`
+	}{Count: len(scans), Result: scans})
+}
+
+func (h *ScanHandler) RunForWebsite(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("website_id")
+	id, err := strconv.ParseInt(q, 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "invalid website_id", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Minute)
+	defer cancel()
+
+	scans, err := h.svc.RunForWebsiteID(ctx, uint(id))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(struct {
+		Count  int         `json:"count"`
+		Result interface{} `json:"result"`
+	}{Count: len(scans), Result: scans})
 }

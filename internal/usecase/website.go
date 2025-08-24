@@ -6,7 +6,7 @@ import (
 
 type WebsiteRepository interface {
 	Create(domain.Website) error
-	GetByID(id int) (*domain.Website, error)
+	GetByID(id uint) (*domain.Website, error)
 	GetAll() ([]domain.Website, error)
 }
 
@@ -23,7 +23,7 @@ func (uc *WebsiteUseCase) CreateWebsite(name string) error {
 	return uc.repo.Create(website)
 }
 
-func (uc *WebsiteUseCase) GetWebsite(id int) (*domain.Website, error) {
+func (uc *WebsiteUseCase) GetWebsite(id uint) (*domain.Website, error) {
 	return uc.repo.GetByID(id)
 }
 
