@@ -12,6 +12,7 @@ import (
 	"scanfetcher/internal/scraper"
 
 	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/launcher"
 )
 
 type ScanService struct {
@@ -83,8 +84,14 @@ func (s *ScanService) runForSite(ctx context.Context, site domain.Website) ([]do
 	}
 
 	// un seul browser par site (plus efficace que par scan)
-	browser := rod.New().MustConnect()
+	log.Printf("[scan] site=%s starting browser", site.Name)
+
+	path, _ := launcher.LookPath()
+	u := launcher.New().Bin(path).MustLaunch()
+	browser := rod.New().ControlURL(u).MustConnect()
+	log.Printf("[scan] site=%s browser started", site.Name)
 	defer func() { _ = browser.Close() }()
+	log.Printf("[scan] site=%s running %d scan entries", site.Name, len(scanEntries))
 
 	scr, err := s.scrapers.Get(site.Name)
 	if err != nil {
