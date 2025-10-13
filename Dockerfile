@@ -1,29 +1,18 @@
-FROM golang:1.24
+FROM alpine:latest
 
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    bash \
-    ca-certificates \
-    libnss3 \
-    libxss1 \
-    libasound2 \
-    libxtst6 \
-    libgtk-3-0 \
-    libgbm1 \
-    libgconf-2-4 \
-    libglib2.0-0 \
-    xvfb \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl
+RUN apk add chromium
+RUN apk add go
 
-ENV CGO_ENABLED=1
+ENV CGO_ENABLED=0
 ENV ROD_BROWSER_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-RUN go install github.com/air-verse/air@latest
+RUN go install github.com/air-verse/air@v1.62.0 && mv /root/go/bin/air /usr/local/bin/
 
 COPY go.mod go.sum ./
+COPY third_party ./third_party
 RUN go mod download
 
 COPY . .

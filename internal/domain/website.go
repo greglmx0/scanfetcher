@@ -1,6 +1,6 @@
 package domain
 
 type Website struct {
-	ID   int
+	ID   uint
 	Name string
 }

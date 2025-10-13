@@ -24,14 +24,14 @@ func (r *WebsiteRepository) Create(website domain.Website) error {
 	return r.db.Create(&dbWebsite).Error
 }
 
-func (r *WebsiteRepository) GetByID(id int) (*domain.Website, error) {
+func (r *WebsiteRepository) GetByID(id uint) (*domain.Website, error) {
 	var dbWebsite db.Website
 	if err := r.db.First(&dbWebsite, id).Error; err != nil {
 		return nil, err
 	}
 
 	return &domain.Website{
-		ID:   int(dbWebsite.ID),
+		ID:   dbWebsite.ID,
 		Name: dbWebsite.Name,
 	}, nil
 }
@@ -45,7 +45,7 @@ func (r *WebsiteRepository) GetAll() ([]domain.Website, error) {
 	var websites []domain.Website
 	for _, w := range dbWebsites {
 		websites = append(websites, domain.Website{
-			ID:   int(w.ID),
+			ID:   w.ID,
 			Name: w.Name,
 		})
 	}

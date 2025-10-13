@@ -4,15 +4,17 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"scanfetcher/internal/cron"
 	"scanfetcher/internal/db"
+	"scanfetcher/internal/notifier"
+	"scanfetcher/internal/scheduler"
+	"scanfetcher/internal/scraper"
+	"scanfetcher/internal/service"
 
 	"scanfetcher/internal/fixtures"
 	"strconv"
 
 	handlers "scanfetcher/internal/handler"
 	"scanfetcher/internal/repository"
-	"scanfetcher/internal/telegram"
 	"scanfetcher/internal/usecase"
 
 	"github.com/gorilla/mux"
@@ -28,7 +30,7 @@ func main() {
 	}
 
 	log.Println("Initialisation du bot Telegram")
-	telegramBot, err := telegram.NewTelegramBot(telegramToken)
+	notif, err := notifier.NewTelegramBot(telegramToken)
 	if err != nil {
 		log.Fatalf("Erreur lors de l'initialisation du bot Telegram: %v", err)
 	}
@@ -41,18 +43,23 @@ func main() {
 		log.Fatalf("Erreur lors de l'initialisation de la base de données: %v", err)
 	}
 
+	scrFactory := scraper.NewFactory()
+	scrFactory.Register("mangas-origines.fr", func() scraper.Scraper {
+		return scraper.NewMangasOriginesScraper()
+	})
+
 	fixtures.SeedData(db)
 
 	// Configurer le routeur HTTP
 	r := mux.NewRouter()
 
-	// User
-	userRepo := repository.NewUserRepository(db)
-	userUseCase := usecase.NewUserUseCase(userRepo)
-	userHandler := handlers.NewUserHandler(userUseCase)
-	r.HandleFunc("/user/{id:[0-9]+}", userHandler.GetUserHandler).Methods("GET")
-	r.HandleFunc("/users", userHandler.GetAllUsersHandler).Methods("GET")
-	r.HandleFunc("/user", userHandler.CreateUserHandler).Methods("POST")
+	// // User
+	// userRepo := repository.NewUserRepository(db)
+	// userUseCase := usecase.NewUserUseCase(userRepo)
+	// userHandler := handlers.NewUserHandler(userUseCase)
+	// r.HandleFunc("/user/{id:[0-9]+}", userHandler.GetUserHandler).Methods("GET")
+	// r.HandleFunc("/users", userHandler.GetAllUsersHandler).Methods("GET")
+	// r.HandleFunc("/user", userHandler.CreateUserHandler).Methods("POST")
 
 	// Website
 	websiteRepo := repository.NewWebsiteRepository(db)
@@ -65,12 +72,21 @@ func main() {
 	// Scan
 	scanRepo := repository.NewScanRepository(db)
 	scanUC := usecase.NewScanUseCase(scanRepo)
-	scanHandler := handlers.NewScanHandler(scanUC)
+	scanService := service.NewScanService(websiteRepo, scanRepo, scrFactory, notif, telegramChatID)
+	scanHandler := handlers.NewScanHandler(scanUC, scanService)
 	r.HandleFunc("/scans", scanHandler.CreateScan).Methods("POST")
 	r.HandleFunc("/websites/{websiteID}/scans", scanHandler.GetScansForWebsite).Methods("GET")
 
-	// Initialiser le planificateur de tâches cron
-	cron.InitCron(telegramBot, telegramChatID, websiteRepo, scanRepo)
+	// service
+	r.HandleFunc("/scan/run-all", scanHandler.RunAll).Methods("POST")
+	r.HandleFunc("/scan/run", scanHandler.RunForWebsite).Methods("POST")
+
+	// scheduler
+	sched := scheduler.NewCronScheduler(scanService)
+	if err := sched.Start(); err != nil {
+		log.Fatal(err)
+	}
+	defer sched.Stop()
 
 	log.Println("Serveur en cours d'exécution sur le port 8080")
 	log.Fatal(http.ListenAndServe(":8080", r))

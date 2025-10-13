@@ -11,7 +11,10 @@ import (
 
 type MangasOriginesScraper struct{}
 
-func (s MangasOriginesScraper) Scrape(browser *rod.Browser, url string) ([]domain.Scan, error) {
+func NewMangasOriginesScraper() Scraper { return &MangasOriginesScraper{} }
+
+func (s *MangasOriginesScraper) Scrape(browser *rod.Browser, url string) ([]domain.Scan, error) {
+
 	page := browser.MustPage(url)
 	page.MustWaitLoad()
 

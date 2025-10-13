@@ -47,7 +47,7 @@ func (h *WebsiteHandler) GetWebsite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	website, err := h.usecase.GetWebsite(id)
+	website, err := h.usecase.GetWebsite(uint(id))
 	if err != nil {
 		http.Error(w, "Website not found", http.StatusNotFound)
 		return

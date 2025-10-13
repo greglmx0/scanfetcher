@@ -1,4 +1,4 @@
-package telegram
+package notifier
 
 import (
 	"log"
@@ -9,6 +9,15 @@ import (
 
 type TelegramBot struct {
 	bot *tgbotapi.BotAPI
+}
+
+type TelegramNotifier struct {
+	bot    *TelegramBot
+	chatID int64
+}
+
+func NewTelegramNotifier(bot *TelegramBot, chatID int64) *TelegramNotifier {
+	return &TelegramNotifier{bot: bot, chatID: chatID}
 }
 
 func NewTelegramBot(token string) (*TelegramBot, error) {

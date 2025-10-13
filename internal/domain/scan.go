@@ -1,7 +1,7 @@
 package domain
 
 type Scan struct {
-	ID           int
+	ID           uint
 	Name         string
 	Url          string
 	LastScanRead string
