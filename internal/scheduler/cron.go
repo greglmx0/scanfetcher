@@ -33,7 +33,9 @@ func (s *CronScheduler) Start() error {
 	_, err := s.c.AddFunc(spec, func() {
 		log.Println("[cron] tick at", time.Now().Format(time.RFC3339))
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		log.Println("[cron] context timeout set to ", spec)
 		defer cancel()
+		log.Println("[cron] running scan service")
 
 		if _, err := s.svc.RunAll(ctx); err != nil {
 			log.Printf("[cron] runAll error: %v", err)

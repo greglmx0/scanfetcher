@@ -7,6 +7,7 @@ import (
 	"scanfetcher/internal/db"
 	"scanfetcher/internal/notifier"
 	"scanfetcher/internal/scheduler"
+	"scanfetcher/internal/scraper"
 	"scanfetcher/internal/service"
 
 	"scanfetcher/internal/fixtures"
@@ -42,6 +43,11 @@ func main() {
 		log.Fatalf("Erreur lors de l'initialisation de la base de données: %v", err)
 	}
 
+	scrFactory := scraper.NewFactory()
+	scrFactory.Register("mangas-origines.fr", func() scraper.Scraper {
+		return scraper.NewMangasOriginesScraper()
+	})
+
 	fixtures.SeedData(db)
 
 	// Configurer le routeur HTTP
@@ -66,7 +72,7 @@ func main() {
 	// Scan
 	scanRepo := repository.NewScanRepository(db)
 	scanUC := usecase.NewScanUseCase(scanRepo)
-	scanService := service.NewScanService(websiteRepo, scanRepo, nil, notif, telegramChatID)
+	scanService := service.NewScanService(websiteRepo, scanRepo, scrFactory, notif, telegramChatID)
 	scanHandler := handlers.NewScanHandler(scanUC, scanService)
 	r.HandleFunc("/scans", scanHandler.CreateScan).Methods("POST")
 	r.HandleFunc("/websites/{websiteID}/scans", scanHandler.GetScansForWebsite).Methods("GET")
